@@ -1,0 +1,298 @@
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const levelEl = document.getElementById('level');
+const messageEl = document.getElementById('message');
+
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+
+const state = {
+  running: false,
+  score: 0,
+  lives: 3,
+  level: 1,
+  lastTime: 0,
+  winStreak: 0,
+};
+
+const chicken = {
+  w: 36,
+  h: 34,
+  x: 0,
+  y: 0,
+};
+
+const logs = [];
+const laneCount = 5;
+const riverTop = canvas.height * 0.16;
+const riverBottom = canvas.height * 0.84;
+const laneHeight = (riverBottom - riverTop) / laneCount;
+
+function resetChicken() {
+  chicken.x = canvas.width / 2 - chicken.w / 2;
+  chicken.y = canvas.height - 58;
+}
+
+function buildLogs() {
+  logs.length = 0;
+  for (let lane = 0; lane < laneCount; lane += 1) {
+    const y = riverTop + laneHeight * lane + laneHeight / 2 - 16;
+    const count = 2 + (lane % 2);
+    for (let i = 0; i < count; i += 1) {
+      const dir = lane % 2 === 0 ? 1 : -1;
+      const baseSpeed = 60 + lane * 16 + state.level * 14;
+      logs.push({
+        x: (canvas.width / count) * i + lane * 85,
+        y,
+        w: 118,
+        h: 30,
+        speed: dir * baseSpeed,
+      });
+    }
+  }
+}
+
+function clampChicken() {
+  chicken.x = Math.max(0, Math.min(canvas.width - chicken.w, chicken.x));
+  chicken.y = Math.max(0, Math.min(canvas.height - chicken.h, chicken.y));
+}
+
+function moveChicken(dx, dy) {
+  if (!state.running) {
+    return;
+  }
+  chicken.x += dx;
+  chicken.y += dy;
+  clampChicken();
+}
+
+function setMessage(text, type = '') {
+  messageEl.textContent = text;
+  messageEl.className = `message ${type}`.trim();
+}
+
+function loseLife(reason) {
+  state.lives -= 1;
+  livesEl.textContent = String(state.lives);
+  if (state.lives <= 0) {
+    state.running = false;
+    setMessage(`💦 游戏结束：${reason}。最终分数 ${state.score}`, 'lose');
+  } else {
+    setMessage(`⚠️ ${reason}，小心点！`);
+    resetChicken();
+  }
+}
+
+function winRound() {
+  state.score += 100 + state.level * 15;
+  state.winStreak += 1;
+  if (state.winStreak % 2 === 0) {
+    state.level += 1;
+    levelEl.textContent = String(state.level);
+    buildLogs();
+  }
+  scoreEl.textContent = String(state.score);
+  setMessage('🎉 成功过河！再来一次，难度已提升。', 'win');
+  resetChicken();
+}
+
+function updateLogs(dt) {
+  for (const log of logs) {
+    log.x += log.speed * dt;
+    if (log.speed > 0 && log.x > canvas.width + 20) {
+      log.x = -log.w - 20;
+    }
+    if (log.speed < 0 && log.x + log.w < -20) {
+      log.x = canvas.width + 20;
+    }
+  }
+}
+
+function chickenInRiver() {
+  return chicken.y > riverTop && chicken.y + chicken.h < riverBottom;
+}
+
+function onTopBank() {
+  return chicken.y <= riverTop - 8;
+}
+
+function collides(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function checkState(dt) {
+  if (onTopBank()) {
+    winRound();
+    return;
+  }
+
+  if (!chickenInRiver()) {
+    return;
+  }
+
+  const platform = logs.find((log) => collides(chicken, log));
+  if (!platform) {
+    loseLife('小鸡掉进河里了');
+    return;
+  }
+
+  chicken.x += platform.speed * dt;
+  clampChicken();
+
+  if (chicken.x <= 0 || chicken.x + chicken.w >= canvas.width) {
+    loseLife('小鸡被水流冲走了');
+  }
+}
+
+function drawChicken() {
+  const x = chicken.x;
+  const y = chicken.y;
+
+  ctx.save();
+  ctx.fillStyle = '#ffe066';
+  ctx.beginPath();
+  ctx.ellipse(x + 18, y + 18, 16, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffd43b';
+  ctx.beginPath();
+  ctx.arc(x + 29, y + 13, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ff922b';
+  ctx.beginPath();
+  ctx.moveTo(x + 36, y + 14);
+  ctx.lineTo(x + 44, y + 17);
+  ctx.lineTo(x + 36, y + 20);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#212529';
+  ctx.beginPath();
+  ctx.arc(x + 31, y + 12, 1.7, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawLogs() {
+  for (const log of logs) {
+    ctx.fillStyle = '#8d5524';
+    ctx.fillRect(log.x, log.y, log.w, log.h);
+    ctx.fillStyle = '#a1683a';
+    ctx.fillRect(log.x + 8, log.y + 5, log.w - 16, 6);
+    ctx.fillStyle = '#7b4a1f';
+    ctx.fillRect(log.x + 8, log.y + 18, log.w - 20, 4);
+  }
+}
+
+function drawLaneGuides() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.setLineDash([8, 8]);
+  for (let i = 1; i < laneCount; i += 1) {
+    const y = riverTop + laneHeight * i;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawLaneGuides();
+  drawLogs();
+  drawChicken();
+
+  if (!state.running) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 38px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('点击“开始游戏”', canvas.width / 2, canvas.height / 2);
+    ctx.font = '18px sans-serif';
+    ctx.fillText('帮助小鸡安全过河！', canvas.width / 2, canvas.height / 2 + 36);
+    ctx.restore();
+  }
+}
+
+function loop(ts) {
+  if (!state.lastTime) {
+    state.lastTime = ts;
+  }
+  const dt = Math.min((ts - state.lastTime) / 1000, 0.05);
+  state.lastTime = ts;
+
+  if (state.running) {
+    updateLogs(dt);
+    checkState(dt);
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function startGame() {
+  state.running = true;
+  state.lastTime = 0;
+  state.score = 0;
+  state.lives = 3;
+  state.level = 1;
+  state.winStreak = 0;
+  scoreEl.textContent = '0';
+  livesEl.textContent = '3';
+  levelEl.textContent = '1';
+  setMessage('游戏开始，祝你好运！');
+  resetChicken();
+  buildLogs();
+}
+
+function restartGame() {
+  startGame();
+  setMessage('已重新开始，冲鸭！');
+}
+
+window.addEventListener(
+  'keydown',
+  (event) => {
+    const step = 34;
+    switch (event.key.toLowerCase()) {
+      case 'arrowup':
+      case 'w':
+        moveChicken(0, -step);
+        break;
+      case 'arrowdown':
+      case 's':
+        moveChicken(0, step);
+        break;
+      case 'arrowleft':
+      case 'a':
+        moveChicken(-step, 0);
+        break;
+      case 'arrowright':
+      case 'd':
+        moveChicken(step, 0);
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+  },
+  { passive: false },
+);
+
+startBtn.addEventListener('click', startGame);
+restartBtn.addEventListener('click', restartGame);
+
+resetChicken();
+buildLogs();
+draw();
+requestAnimationFrame(loop);

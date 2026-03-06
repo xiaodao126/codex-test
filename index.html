@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小鸡过河</title>
+  <meta name="description" content="小鸡过河：一个可直接部署到 GitHub Pages 的纯前端 Canvas 网页小游戏。" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="game">
+    <section class="header">
+      <h1>🐥 小鸡过河</h1>
+      <div class="controls">
+        <button id="startBtn" type="button">开始游戏</button>
+        <button id="restartBtn" type="button">重新开始</button>
+      </div>
+    </section>
+
+    <section class="status">
+      <div class="card">分数<strong id="score">0</strong></div>
+      <div class="card">生命<strong id="lives">3</strong></div>
+      <div class="card">关卡<strong id="level">1</strong></div>
+    </section>
+
+    <canvas id="gameCanvas" width="880" height="500" aria-label="小鸡过河游戏画布"></canvas>
+
+    <p id="message" class="message" aria-live="polite"></p>
+
+    <p class="hint">
+      操作：<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> 或 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动小鸡，
+      躲开水里的木桩并到达顶部草地。
+    </p>
+  </main>
+
+  <script src="./script.js"></script>
+</body>
+</html>
